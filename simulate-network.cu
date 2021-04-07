@@ -1,4 +1,5 @@
 #include <stdio.h>
+//#include <iostream.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -11,6 +12,7 @@
 #define THRESHOLD 0.5
 #define VOLT_TAU 20.0
 #define VOLT_COEFF exp(-1.0/VOLT_TAU)
+#define REF_PERIOD 3
 
 #define W_IN_SIZE N_IN*N_REC
 #define W_REC_SIZE N_REC*N_REC
@@ -22,6 +24,7 @@ float uniform(float low, float high) {
 
 __global__ void network_step(float voltages[NET_STATE_SIZE],
                              float spike_trains[NET_STATE_SIZE],
+                             int refractory_periods[NET_STATE_SIZE],
                              float in_currents[N_WINDOW*N_IN],
                              float weight_in[W_IN_SIZE],
                              float weight_rec[W_REC_SIZE],
@@ -56,12 +59,13 @@ __global__ void network_step(float voltages[NET_STATE_SIZE],
 
         int tm = t % N_WINDOW;
         int index = N_REC*tm + post;
-        float last_spike = spike_trains[N_REC*last_t + post];
+        int last_index = N_REC*last_t + post;
 
-        //if a spike occurred in the last step, we do a hard reset
-        if(last_spike > 0.5) {
+        //if a spike occurred in the last step, or we are in the refractory period, clamp the voltage and spike trains to 0
+        if(spike_trains[last_index] > 0.5 || refractory_periods[last_index] > 0) {
             voltages[index] = 0.0;
             spike_trains[index] = 0.0;
+            refractory_periods[index] = (1 + refractory_periods[N_REC*last_t + post])%REF_PERIOD;
         }
 
         //otherwise sum the synaptic potentials and possibly generate a spike
@@ -84,13 +88,16 @@ __global__ void network_step(float voltages[NET_STATE_SIZE],
 
 int main() {
 
+    //std::cout << std::fixed;
+
     float w_in[W_IN_SIZE];
     // first index is presynaptic, second index is postsynaptic
     for(size_t i = 0; i < N_IN; ++i) {
         for(size_t j = 0; j < N_REC; ++j) {
             //w_in[i*N_IN + j] = uniform(-0.1, 0.1);
-            w_in[N_REC*i + j] = j == 4 ? 1.0 : 0.0; //all the current will go to the fifth postsynaptic neuron
+            //w_in[N_REC*i + j] = j == 4 ? 1.0 : 0.0; //all the current will go to the fifth postsynaptic neuron
             //printf("%f   ", w_in[N_REC*i + j]);
+            w_in[N_REC*i + j] = uniform(0.0, 1.0);
         }
     //printf("\n");
     }
@@ -98,7 +105,7 @@ int main() {
     float w_rec[W_REC_SIZE];
     for(size_t i = 0; i < N_REC; ++i) {
         for(size_t j = 0; j < N_REC; ++j) {
-        //*
+        /*
             if(i == j - 1) {
                 w_rec[i*N_REC + j] = 1.0;
             }
@@ -108,6 +115,7 @@ int main() {
         //printf("%f   ", w_rec[i*N_REC + j]);
         //*/
         //w_rec[N_REC*i + j] = i == j ? 1.0 : 0.0;
+        w_rec[N_REC*i + j] = uniform(-1.0, 1.0);
         }
     //printf("\n");
     }    
@@ -134,23 +142,33 @@ int main() {
         }
     }
 
+    int ref_periods[NET_STATE_SIZE];
+    for(size_t i = 0; i < N_WINDOW; ++i) {
+        for(size_t j = 0; j < N_REC; ++j) {
+            ref_periods[N_REC*i + j] = 0;
+        }
+    }
+
     //printf("\n");
     float* w_in_gpu;
     float* w_rec_gpu;
     float* volts_gpu;
     float* spikes_gpu;
+    int* ref_periods_gpu;
     float* in_currents_gpu; //pre-determined current so that we don't have to genereate it every time step
 
     cudaMalloc(&w_in_gpu, W_IN_SIZE*sizeof(float));
     cudaMalloc(&w_rec_gpu, W_REC_SIZE*sizeof(float));
     cudaMalloc(&volts_gpu, NET_STATE_SIZE*sizeof(float));
     cudaMalloc(&spikes_gpu, NET_STATE_SIZE*sizeof(float));
+    cudaMalloc(&ref_periods_gpu, NET_STATE_SIZE*sizeof(int));
     cudaMalloc(&in_currents_gpu, N_IN*N_WINDOW*sizeof(float));
 
     cudaMemcpy(w_in_gpu, w_in, W_IN_SIZE*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(w_rec_gpu, w_rec, W_REC_SIZE*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(volts_gpu, volts, NET_STATE_SIZE*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(spikes_gpu, spikes, NET_STATE_SIZE*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(ref_periods_gpu, ref_periods, NET_STATE_SIZE*sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(in_currents_gpu, in_currents, N_WINDOW*N_IN*sizeof(float), cudaMemcpyHostToDevice);
 
     for(int time = 1; time < TIMESTEPS; ++time) {
@@ -168,24 +186,37 @@ int main() {
 
         int numBlocks = 1;
         dim3 threadsPerBlock(N_REC, N_REC);
-        network_step<<<numBlocks, threadsPerBlock>>>(volts_gpu, spikes_gpu, in_currents_gpu, w_in_gpu, w_rec_gpu, time);
+        network_step<<<numBlocks, threadsPerBlock>>>(volts_gpu, spikes_gpu, ref_periods_gpu, in_currents_gpu, w_in_gpu, w_rec_gpu, time);
     }
 
     cudaMemcpy(w_in, w_in_gpu, W_IN_SIZE*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(w_rec, w_rec_gpu, W_REC_SIZE*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(volts, volts_gpu, NET_STATE_SIZE*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(spikes, spikes_gpu, NET_STATE_SIZE*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(ref_periods, ref_periods_gpu, NET_STATE_SIZE*sizeof(float), cudaMemcpyDeviceToHost);
 
     cudaFree(w_in_gpu);
     cudaFree(w_rec_gpu);
     cudaFree(volts_gpu);
     cudaFree(spikes_gpu);
+    cudaFree(ref_periods_gpu);
     cudaFree(in_currents_gpu);
 
     for(size_t i = 0; i < N_WINDOW; ++i) {
-        printf("%d    ", i);
+        printf("%2d", i);
+        //std::cout << std::setw(4) << i
         for(size_t j = 0; j < N_REC; ++j) {
-            printf("%f   ", volts[N_REC*i + j]);
+            printf("  ");
+            printf("%4.2f", volts[N_REC*i + j]);
+            //std::cout << "  "
+            //std::cout << setw(4) << volts[N_REC*i + j];
+        }
+        printf("    ");
+        for(size_t j = 0; j < N_REC; ++j) {
+            printf("  ");
+            printf("%4.2f", spikes[N_REC*i + j]);
+            //std::cout << "  "
+            //std::cout << setw(4) < spikes[N_REC*i + j];
         }
         printf("\n");
     }
