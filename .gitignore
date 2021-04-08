@@ -31,6 +31,6 @@
 *.out
 *.app
 
-# Other
-build
+# Build/run-related things 
+main
 output
