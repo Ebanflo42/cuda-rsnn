@@ -6,15 +6,15 @@
 
 #include "src/simulation.cu"
 
-#define N_IN 5
-#define N_REC 10
+#define N_IN 4
+#define N_REC 8
 #define N_WINDOW 20
 #define TIMESTEPS 20
 
-#define THRESHOLD 0.5
+#define THRESHOLD 0.3
 #define VOLT_TAU 20.0
 #define VOLT_COEFF exp(-1.0/VOLT_TAU)
-#define REF_PERIOD 3
+#define REF_PERIOD 2
 
 #define W_IN_SIZE N_IN*N_REC
 #define W_REC_SIZE N_REC*N_REC
@@ -24,7 +24,9 @@ int main() {
 
     Simulation mySim = Simulation(N_REC, N_IN, REF_PERIOD, THRESHOLD, VOLT_TAU, N_WINDOW);
     mySim.allocate();
+    mySim.copyToDevice();
     mySim.simulate(TIMESTEPS);
+    mySim.copyFromDevice();
     mySim.free();
 
     for(size_t i = 0; i < N_WINDOW; ++i) {
