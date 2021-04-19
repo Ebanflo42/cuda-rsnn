@@ -42,17 +42,24 @@ __global__ void stepLIF(float* voltages,
         else {
 
             voltages[index] = volt_coeff*voltages[last_index];
-
+            //printf("%f\n", voltages[index]);
             //recurrent
             for(size_t pre_ = 0; pre_ < n_rec; ++pre_) {
-                voltages[index] += weights_rec[n_rec*pre_ + post]*spike_trains[n_rec*last_t + pre_]; 
+                voltages[index] += weights_rec[n_rec*pre_ + post]*spike_trains[n_rec*last_t + pre_];
+                /*
+                if(t == 0) {
+                    printf("%f\n", weights_rec[n_rec*pre_ + post]);
+                }
+                */
             }
+            //printf("%f\n", voltages[index]);
 
             //input
             for(size_t pre_ = 0; pre_ < n_in; ++pre_) {
                 voltages[index] += weights_in[n_rec*pre_ + post]*in_currents[n_in*last_t + pre_];
             }
-
+            //printf("%f\n", threshold);
+            //printf("%f\n", voltages[index]);
             spike_trains[index] = voltages[index] > threshold ? 1.0 : 0.0;
         }
     }

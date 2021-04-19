@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <stdlib.h>
 #include <math.h>
@@ -89,6 +90,52 @@ __global__ void network_step(float voltages[NET_STATE_SIZE],
     }
 }
 
+__global__ void stepLIF(float* voltages,
+                        float* spike_trains,
+                        int* refractory_buffer,
+                        float* in_currents,
+                        float* weights_in,
+                        float* weights_rec,
+                        int t) {
+
+    int pre = blockIdx.x*blockDim.x + threadIdx.x;
+    int post = blockIdx.y*blockDim.y + threadIdx.y;
+
+    //compute new voltages and spikes
+    if(pre == 0 && post < N_REC) {
+
+        int last_t = (t - 1)%N_WINDOW;
+        int tm = t%N_WINDOW;
+        int index = N_REC*tm + post;
+        int last_index = N_REC*last_t + post;
+
+        //if a spike occurred in the last step, or we are in the refractory period, clamp the voltage and spike trains to 0
+        if(spike_trains[last_index] > 0.5 || refractory_buffer[last_index] > 0) {
+            voltages[index] = 0.0;
+            spike_trains[index] = 0.0;
+            refractory_buffer[index] = (1 + refractory_buffer[last_index])%REF_PERIOD;
+        }
+
+        //otherwise sum the synaptic potentials and possibly generate a spike
+        else {
+
+            voltages[index] = VOLT_COEFF*voltages[last_index];
+
+            //recurrent
+            for(size_t pre_ = 0; pre_ < N_REC; ++pre_) {
+                voltages[index] += weights_rec[N_REC*pre_ + post]*spike_trains[N_REC*last_t + pre_]; 
+            }
+
+            //input
+            for(size_t pre_ = 0; pre_ < N_IN; ++pre_) {
+                voltages[index] += weights_in[N_REC*pre_ + post]*in_currents[N_IN*last_t + pre_];
+            }
+
+            spike_trains[index] = voltages[index] > THRESHOLD ? 1.0 : 0.0;
+        }
+    }
+}
+
 int main() {
 
     float w_rec[W_REC_SIZE];
@@ -124,7 +171,7 @@ int main() {
     float in_currents[N_WINDOW*N_IN];
     for(size_t i = 0; i < N_WINDOW; ++i) {
         for(size_t j = 0; j < N_REC; ++j) {
-            in_currents[N_REC*i + j] = uniform(0.0, 1.0);
+            in_currents[N_REC*i + j] = uniform(0.0, 0.3);
         }
     }
 
@@ -163,7 +210,7 @@ int main() {
         if(time%N_WINDOW == 0) {
             for(size_t i = 0; i < N_WINDOW; ++i) {
                 for(size_t j = 0; j < N_REC; ++j) {
-                    in_currents[N_REC*i + j] = uniform(0.0, 1.0);
+                    in_currents[N_REC*i + j] = 0.0;//uniform(0.0, 1.0);
                 }
             }
             cudaMemcpy(in_currents_gpu, in_currents, N_WINDOW*N_IN*sizeof(float), cudaMemcpyHostToDevice);
@@ -172,7 +219,7 @@ int main() {
 
         int numBlocks = 1;
         dim3 threadsPerBlock(N_REC, N_REC);
-        network_step<<<numBlocks, threadsPerBlock>>>(volts_gpu, spikes_gpu, ref_periods_gpu, in_currents_gpu, w_in_gpu, w_rec_gpu, time);
+        stepLIF<<<numBlocks, threadsPerBlock>>>(volts_gpu, spikes_gpu, ref_periods_gpu, in_currents_gpu, w_in_gpu, w_rec_gpu, time);
     }
 
     cudaMemcpy(w_in, w_in_gpu, W_IN_SIZE*sizeof(float), cudaMemcpyDeviceToHost);
@@ -189,22 +236,23 @@ int main() {
     cudaFree(in_currents_gpu);
 
     for(size_t i = 0; i < N_WINDOW; ++i) {
-        printf("%2d", i);
-        //std::cout << std::setw(4) << i
+        //printf("%2d", i);
+        cout << setw(4) << i;
         for(size_t j = 0; j < N_REC; ++j) {
-            printf("  ");
-            printf("%4.2f", volts[N_REC*i + j]);
-            //std::cout << "  "
-            //std::cout << setw(4) << volts[N_REC*i + j];
+            //printf("  ");
+            //printf("%4.2f", volts[N_REC*i + j]);
+            cout << "  ";
+            cout << fixed << setprecision(2) << setw(4) << volts[N_REC*i + j];
         }
-        printf("    ");
+        //printf("    ");
+        cout << "    ";
         for(size_t j = 0; j < N_REC; ++j) {
-            printf("  ");
-            printf("%4.2f", spikes[N_REC*i + j]);
-            //std::cout << "  "
-            //std::cout << setw(4) < spikes[N_REC*i + j];
+            //printf("  ");
+            //printf("%4.2f", spikes[N_REC*i + j]);
+            cout << "  ";
+            cout << fixed << setprecision(2) << setw(4) << spikes[N_REC*i + j];
         }
-        printf("\n");
+        cout << endl;
     }
 
     return 0;

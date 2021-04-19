@@ -22,16 +22,16 @@ class Simulation {
        
         int n_ref;
         float threshold;
-        float tauVoltage;
-        float voltageCoeff;
+        float tau_volt;
+        float volt_coeff;
 
-        bool deviceMemoryAllocated;
+        bool device_memory_allocated;
 
         int buffer_length;
 
         int net_state_size;
         int weights_rec_size;
-        int w_in_size;
+        int weights_in_size;
 
         vector<float> weights_rec;
         vector<float> weights_in;
@@ -78,16 +78,17 @@ Simulation::Simulation(int nrec,
     n_ref = nref;
 
     threshold = thr;
-    tauVoltage = tauv;
-    voltageCoeff = exp(-1.0/tauv);
+    tau_volt = tauv;
+    volt_coeff = exp(-1.0/tauv);
 
-    deviceMemoryAllocated = false;
+    device_memory_allocated = false;
 
     buffer_length = buffer_len;
 
     net_state_size = buffer_len*nrec;
+    cout << net_state_size << endl;
     weights_rec_size = nrec*nrec;
-    w_in_size = nin*nrec;
+    weights_in_size = nin*nrec;
 
     // first index is presynaptic, second index is postsynaptic
     for(size_t i = 0; i < n_in; ++i) {
@@ -95,18 +96,22 @@ Simulation::Simulation(int nrec,
             weights_in.push_back(uniform(0.0, 1.0));
         }
     }
+    cout << sizeof(weights_in.data())/sizeof(float) << endl;
 
     for(size_t i = 0; i < n_rec; ++i) {
         for(size_t j = 0; j < n_rec; ++j) {
             weights_rec.push_back(uniform(-1.0, 1.0));
         }
-    }    
-    //weights_rec[(n_rec - 1)*n_rec] = 1.0;
+    }
+    cout << sizeof(weights_rec.data())/sizeof(float) << endl;
     
     for(size_t i = 0; i < buffer_length; ++i) {
         for(size_t j = 0; j < n_rec; ++j) {
             voltages.push_back(0.0);
         }
+    }
+    for(float v : voltages) {
+        cout << v << endl;
     }
 
     for(size_t i = 0; i < buffer_length; ++i) {
@@ -124,18 +129,18 @@ Simulation::Simulation(int nrec,
 
 void Simulation::allocate() {
     
-    cudaMalloc(&weights_in_device, w_in_size*sizeof(float));
+    cudaMalloc(&weights_in_device, weights_in_size*sizeof(float));
     cudaMalloc(&weights_rec_device, weights_rec_size*sizeof(float));
     cudaMalloc(&voltage_device, net_state_size*sizeof(float));
     cudaMalloc(&spikes_device, net_state_size*sizeof(float));
     cudaMalloc(&refractory_buffer_device, net_state_size*sizeof(int));
 
-    deviceMemoryAllocated = true;
+    device_memory_allocated = true;
 }
 
 void Simulation::copyToDevice() {
 
-    cudaMemcpy(weights_in_device, weights_in.data(), w_in_size*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(weights_in_device, weights_in.data(), weights_in_size*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(weights_rec_device, weights_rec.data(), weights_rec_size*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(voltage_device, voltages.data(), net_state_size*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(spikes_device, spikes.data(), net_state_size*sizeof(float), cudaMemcpyHostToDevice);
@@ -145,7 +150,7 @@ void Simulation::copyToDevice() {
 void Simulation::simulate(int timesteps) {
 
     int numBlocks = 4;
-    dim3 threadsPerBlock(1, n_rec/4);
+    dim3 threadsPerBlock(1, n_rec/3);
 
     float in_currents[buffer_length*n_in];
     float* in_currents_device;
@@ -156,7 +161,7 @@ void Simulation::simulate(int timesteps) {
         if(time%buffer_length == 0) {
             for(size_t i = 0; i < buffer_length; ++i) {
                 for(size_t j = 0; j < n_in; ++j) {
-                    in_currents[n_in*i + j] = uniform(0.0, 1.0);
+                    in_currents[n_in*i + j] = uniform(0.0, 0.3);
                 }
             }
             cudaMemcpy(in_currents_device, in_currents, buffer_length*n_in*sizeof(float), cudaMemcpyHostToDevice);
@@ -168,13 +173,13 @@ void Simulation::simulate(int timesteps) {
                                                             in_currents_device,
                                                             weights_in_device,
                                                             weights_rec_device,
-                                                            n_rec,
                                                             n_in,
-                                                            w_in_size,
+                                                            n_rec,
+                                                            weights_in_size,
                                                             weights_rec_size,
                                                             buffer_length,
                                                             n_ref,
-                                                            voltageCoeff,
+                                                            volt_coeff,
                                                             threshold, 
                                                             time);
     }
@@ -185,11 +190,11 @@ void Simulation::simulate(int timesteps) {
 
 void Simulation::copyFromDevice() {
 
-    cudaMemcpy(weights_in.data(), weights_in_device, w_in_size*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(weights_in.data(), weights_in_device, weights_in_size*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(weights_rec.data(), weights_rec_device, weights_rec_size*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(voltages.data(), voltage_device, net_state_size*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(spikes.data(), spikes_device, net_state_size*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(refractory_buffer.data(), refractory_buffer_device, net_state_size*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(refractory_buffer.data(), refractory_buffer_device, net_state_size*sizeof(int), cudaMemcpyDeviceToHost);
 }
 
 void Simulation::free() {
@@ -200,5 +205,5 @@ void Simulation::free() {
     cudaFree(spikes_device);
     cudaFree(refractory_buffer_device);
 
-    deviceMemoryAllocated = false;
+    device_memory_allocated = false;
 }

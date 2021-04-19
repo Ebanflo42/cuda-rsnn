@@ -1,5 +1,6 @@
 #include <stdio.h>
-//#include <iostream.h>
+#include <iostream>
+#include <iomanip>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -30,23 +31,43 @@ int main() {
     mySim.free();
 
     for(size_t i = 0; i < N_WINDOW; ++i) {
+        //printf("%2d", i);
+        cout << setw(5) << i;
+        for(size_t j = 0; j < N_REC; ++j) {
+            //printf("  ");
+            //printf("%4.2f", volts[N_REC*i + j]);
+            cout << "  ";
+            cout << fixed << setprecision(2) << setw(5) << mySim.voltages[N_REC*i + j];
+        }
+        //printf("    ");
+        cout << "    ";
+        for(size_t j = 0; j < N_REC; ++j) {
+            //printf("  ");
+            //printf("%4.2f", spikes[N_REC*i + j]);
+            cout << "  ";
+            cout << fixed << setprecision(2) << setw(5) << mySim.spikes[N_REC*i + j];
+        }
+        cout << endl;
+    }
+/*
+    for(size_t i = 0; i < N_WINDOW; ++i) {
         printf("%2d", i);
-        //std::cout << std::setw(4) << i
+        //std::cout << std::setw(5) << i
         for(size_t j = 0; j < N_REC; ++j) {
             printf("  ");
             printf("%4.2f", mySim.voltages[N_REC*i + j]);
             //std::cout << "  "
-            //std::cout << setw(4) << volts[N_REC*i + j];
+            //std::cout << setw(5) << volts[N_REC*i + j];
         }
         printf("    ");
         for(size_t j = 0; j < N_REC; ++j) {
             printf("  ");
             printf("%4.2f", mySim.spikes[N_REC*i + j]);
             //std::cout << "  "
-            //std::cout << setw(4) < spikes[N_REC*i + j];
+            //std::cout << setw(5) < spikes[N_REC*i + j];
         }
         printf("\n");
     }
-
+*/
     return 0;
 }
