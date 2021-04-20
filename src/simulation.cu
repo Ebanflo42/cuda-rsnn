@@ -86,7 +86,6 @@ Simulation::Simulation(int nrec,
     buffer_length = buffer_len;
 
     net_state_size = buffer_len*nrec;
-    cout << net_state_size << endl;
     weights_rec_size = nrec*nrec;
     weights_in_size = nin*nrec;
 
@@ -111,7 +110,7 @@ Simulation::Simulation(int nrec,
 
     for(size_t i = 0; i < buffer_length; ++i) {
         for(size_t j = 0; j < n_rec; ++j) {
-            spikes.push_back(uniform(0.0, 1.0));
+            spikes.push_back(0.0);
         }
     }
 
@@ -123,9 +122,12 @@ Simulation::Simulation(int nrec,
 }
 
 void Simulation::allocate() {
-    
+
+    printf("got here\n");
     cudaMalloc(&weights_in_device, weights_in_size*sizeof(float));
+    printf("got here\n");
     cudaMalloc(&weights_rec_device, weights_rec_size*sizeof(float));
+    printf("got here\n");
     cudaMalloc(&voltage_device, net_state_size*sizeof(float));
     cudaMalloc(&spikes_device, net_state_size*sizeof(float));
     cudaMalloc(&refractory_buffer_device, net_state_size*sizeof(int));
@@ -198,4 +200,15 @@ void Simulation::free() {
     cudaFree(refractory_buffer_device);
 
     device_memory_allocated = false;
+}
+
+extern "C" {
+    Simulation* new_simulation(int nrec, int nin, int nref, float thr, float tauv, int buffer_len) {
+        return new Simulation(nrec, nin, nref, thr, tauv, buffer_len);
+    }
+    void allocate_simulation(Simulation* sim) { sim->allocate(); }
+    void copy_to_device(Simulation* sim) { sim->copyToDevice(); }
+    void run_simulation(Simulation* sim, int steps) { sim->simulate(steps); }
+    void copy_from_device(Simulation* sim) { sim->copyFromDevice(); }
+    void free_simulation(Simulation* sim) { sim->free(); }
 }

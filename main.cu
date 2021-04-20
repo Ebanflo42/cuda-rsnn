@@ -7,10 +7,10 @@
 
 #include "src/simulation.cu"
 
-#define N_IN 4
-#define N_REC 8
-#define N_WINDOW 20
-#define TIMESTEPS 20
+#define N_IN 50
+#define N_REC 250
+#define N_WINDOW 10000
+#define TIMESTEPS 20000
 
 #define THRESHOLD 0.3
 #define VOLT_TAU 20.0
@@ -30,10 +30,11 @@ int main() {
     mySim.copyFromDevice();
     mySim.free();
 
-    for(size_t i = 0; i < N_WINDOW; ++i) {
+    //view a subset of spike trains and voltages
+    for(size_t i = N_WINDOW - 100; i < N_WINDOW; ++i) {
         //printf("%2d", i);
         cout << setw(5) << i;
-        for(size_t j = 0; j < N_REC; ++j) {
+        for(size_t j = 0; j < 10; ++j) {
             //printf("  ");
             //printf("%4.2f", volts[N_REC*i + j]);
             cout << "  ";
@@ -41,7 +42,7 @@ int main() {
         }
         //printf("    ");
         cout << "    ";
-        for(size_t j = 0; j < N_REC; ++j) {
+        for(size_t j = 0; j < 10; ++j) {
             //printf("  ");
             //printf("%4.2f", spikes[N_REC*i + j]);
             cout << "  ";
@@ -49,25 +50,6 @@ int main() {
         }
         cout << endl;
     }
-/*
-    for(size_t i = 0; i < N_WINDOW; ++i) {
-        printf("%2d", i);
-        //std::cout << std::setw(5) << i
-        for(size_t j = 0; j < N_REC; ++j) {
-            printf("  ");
-            printf("%4.2f", mySim.voltages[N_REC*i + j]);
-            //std::cout << "  "
-            //std::cout << setw(5) << volts[N_REC*i + j];
-        }
-        printf("    ");
-        for(size_t j = 0; j < N_REC; ++j) {
-            printf("  ");
-            printf("%4.2f", mySim.spikes[N_REC*i + j]);
-            //std::cout << "  "
-            //std::cout << setw(5) < spikes[N_REC*i + j];
-        }
-        printf("\n");
-    }
-*/
+
     return 0;
 }
