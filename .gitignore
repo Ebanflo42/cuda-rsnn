@@ -35,3 +35,6 @@
 main
 output
 test
+
+# vim
+*.swp
