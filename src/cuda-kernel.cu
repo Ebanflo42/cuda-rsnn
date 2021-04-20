@@ -20,11 +20,10 @@ __global__ void stepLIF(float* voltages,
                         float threshold,
                         int t) {
 
-    int pre = blockIdx.x*blockDim.x + threadIdx.x;
-    int post = blockIdx.y*blockDim.y + threadIdx.y;
+    int post = blockIdx.x*blockDim.x + threadIdx.x;
 
     //compute new voltages and spikes
-    if(pre == 0 && post < n_rec) {
+    if(post < n_rec) {
 
         int last_t = (t - 1)%buffer_len;
         int tm = t%buffer_len;
@@ -42,24 +41,17 @@ __global__ void stepLIF(float* voltages,
         else {
 
             voltages[index] = volt_coeff*voltages[last_index];
-            //printf("%f\n", voltages[index]);
+
             //recurrent
             for(size_t pre_ = 0; pre_ < n_rec; ++pre_) {
                 voltages[index] += weights_rec[n_rec*pre_ + post]*spike_trains[n_rec*last_t + pre_];
-                /*
-                if(t == 0) {
-                    printf("%f\n", weights_rec[n_rec*pre_ + post]);
-                }
-                */
             }
-            //printf("%f\n", voltages[index]);
 
             //input
             for(size_t pre_ = 0; pre_ < n_in; ++pre_) {
                 voltages[index] += weights_in[n_rec*pre_ + post]*in_currents[n_in*last_t + pre_];
             }
-            //printf("%f\n", threshold);
-            //printf("%f\n", voltages[index]);
+
             spike_trains[index] = voltages[index] > threshold ? 1.0 : 0.0;
         }
     }

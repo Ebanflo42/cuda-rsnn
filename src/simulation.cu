@@ -96,22 +96,17 @@ Simulation::Simulation(int nrec,
             weights_in.push_back(uniform(0.0, 1.0));
         }
     }
-    cout << sizeof(weights_in.data())/sizeof(float) << endl;
 
     for(size_t i = 0; i < n_rec; ++i) {
         for(size_t j = 0; j < n_rec; ++j) {
             weights_rec.push_back(uniform(-1.0, 1.0));
         }
     }
-    cout << sizeof(weights_rec.data())/sizeof(float) << endl;
     
     for(size_t i = 0; i < buffer_length; ++i) {
         for(size_t j = 0; j < n_rec; ++j) {
             voltages.push_back(0.0);
         }
-    }
-    for(float v : voltages) {
-        cout << v << endl;
     }
 
     for(size_t i = 0; i < buffer_length; ++i) {
@@ -149,9 +144,6 @@ void Simulation::copyToDevice() {
 
 void Simulation::simulate(int timesteps) {
 
-    int numBlocks = 4;
-    dim3 threadsPerBlock(1, n_rec/3);
-
     float in_currents[buffer_length*n_in];
     float* in_currents_device;
     cudaMalloc(&in_currents_device, buffer_length*n_in*sizeof(float));
@@ -167,21 +159,21 @@ void Simulation::simulate(int timesteps) {
             cudaMemcpy(in_currents_device, in_currents, buffer_length*n_in*sizeof(float), cudaMemcpyHostToDevice);
         }
 
-        cudakernel::stepLIF<<<numBlocks, threadsPerBlock>>>(voltage_device,
-                                                            spikes_device,
-                                                            refractory_buffer_device,
-                                                            in_currents_device,
-                                                            weights_in_device,
-                                                            weights_rec_device,
-                                                            n_in,
-                                                            n_rec,
-                                                            weights_in_size,
-                                                            weights_rec_size,
-                                                            buffer_length,
-                                                            n_ref,
-                                                            volt_coeff,
-                                                            threshold, 
-                                                            time);
+        cudakernel::stepLIF<<<4, n_rec/3>>>(voltage_device,
+                                            spikes_device,
+                                            refractory_buffer_device,
+                                            in_currents_device,
+                                            weights_in_device,
+                                            weights_rec_device,
+                                            n_in,
+                                            n_rec,
+                                            weights_in_size,
+                                            weights_rec_size,
+                                            buffer_length,
+                                            n_ref,
+                                            volt_coeff,
+                                            threshold, 
+                                            time);
     }
 
     // just in case leaving the scope doesn't destroy the allocation(?)

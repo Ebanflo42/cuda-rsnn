@@ -98,11 +98,10 @@ __global__ void stepLIF(float* voltages,
                         float* weights_rec,
                         int t) {
 
-    int pre = blockIdx.x*blockDim.x + threadIdx.x;
-    int post = blockIdx.y*blockDim.y + threadIdx.y;
+    int post = blockIdx.x*blockDim.x + threadIdx.x;
 
     //compute new voltages and spikes
-    if(pre == 0 && post < N_REC) {
+    if(post < N_REC) {
 
         int last_t = (t - 1)%N_WINDOW;
         int tm = t%N_WINDOW;
@@ -217,9 +216,7 @@ int main() {
         }
         
 
-        int numBlocks = 1;
-        dim3 threadsPerBlock(N_REC, N_REC);
-        stepLIF<<<numBlocks, threadsPerBlock>>>(volts_gpu, spikes_gpu, ref_periods_gpu, in_currents_gpu, w_in_gpu, w_rec_gpu, time);
+        stepLIF<<<4, N_REC/3>>>(volts_gpu, spikes_gpu, ref_periods_gpu, in_currents_gpu, w_in_gpu, w_rec_gpu, time);
     }
 
     cudaMemcpy(w_in, w_in_gpu, W_IN_SIZE*sizeof(float), cudaMemcpyDeviceToHost);
@@ -237,12 +234,12 @@ int main() {
 
     for(size_t i = 0; i < N_WINDOW; ++i) {
         //printf("%2d", i);
-        cout << setw(4) << i;
+        cout << setw(5) << i;
         for(size_t j = 0; j < N_REC; ++j) {
             //printf("  ");
             //printf("%4.2f", volts[N_REC*i + j]);
             cout << "  ";
-            cout << fixed << setprecision(2) << setw(4) << volts[N_REC*i + j];
+            cout << fixed << setprecision(2) << setw(5) << volts[N_REC*i + j];
         }
         //printf("    ");
         cout << "    ";
@@ -250,7 +247,7 @@ int main() {
             //printf("  ");
             //printf("%4.2f", spikes[N_REC*i + j]);
             cout << "  ";
-            cout << fixed << setprecision(2) << setw(4) << spikes[N_REC*i + j];
+            cout << fixed << setprecision(2) << setw(5) << spikes[N_REC*i + j];
         }
         cout << endl;
     }
