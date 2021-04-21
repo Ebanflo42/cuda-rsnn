@@ -40,6 +40,12 @@ __global__ void stepLIF(float* voltages,
         //otherwise sum the synaptic potentials and possibly generate a spike
         else {
 
+            /*
+            if(t < 20) {
+                printf("%d %f\n", post, voltages[index]);
+            }
+            */
+
             voltages[index] = volt_coeff*voltages[last_index];
 
             //recurrent
