@@ -201,6 +201,8 @@ void Simulation::copyToDevice() {
     cudaMemcpy(voltages_device, voltages, net_state_size*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(spikes_device, spikes, net_state_size*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(refractory_buffer_device, refractory_buffer.data(), net_state_size*sizeof(int), cudaMemcpyHostToDevice);
+
+    cudaDeviceSynchronize();
 }
 
 void Simulation::simulate(int timesteps) {
@@ -209,43 +211,30 @@ void Simulation::simulate(int timesteps) {
     float* in_currents_device;
     cudaMalloc(&in_currents_device, buffer_length*n_in*sizeof(float));
 
-    for(int time = 0; time < timesteps; ++time) {
-
-        if(time%buffer_length == 0) {
-            for(size_t i = 0; i < buffer_length; ++i) {
-                for(size_t j = 0; j < n_in; ++j) {
-                    in_currents[n_in*i + j] = uniform(0.0, 0.3);
-                    /*
-                    if(i > 10500) {
-                        printf("%f  ", in_currents[n_in*i + j]);
-                    }
-                    */
-                }
-                /*
-                if(i > 10500) {
-                    printf("\n");
-                }
-                */
-            }
-            cudaMemcpy(in_currents_device, in_currents, buffer_length*n_in*sizeof(float), cudaMemcpyHostToDevice);
+    for(size_t i = 0; i < buffer_length; ++i) {
+        for(size_t j = 0; j < n_in; ++j) {
+            in_currents[n_in*i + j] = uniform(0.0, 0.3);
         }
-
-        cudakernel::stepLIF<<<1, n_rec>>>(voltages_device,
-                                            spikes_device,
-                                            refractory_buffer_device,
-                                            in_currents_device,
-                                            weights_in_device,
-                                            weights_rec_device,
-                                            n_in,
-                                            n_rec,
-                                            weights_in_size,
-                                            weights_rec_size,
-                                            buffer_length,
-                                            n_ref,
-                                            volt_coeff,
-                                            threshold, 
-                                            time);
     }
+    cudaMemcpy(in_currents_device, in_currents, buffer_length*n_in*sizeof(float), cudaMemcpyHostToDevice);
+
+    cudakernel::stepLIF<<<1, n_rec>>>(voltages_device,
+                                      spikes_device,
+                                      refractory_buffer_device,
+                                      in_currents_device,
+                                      weights_in_device,
+                                      weights_rec_device,
+                                      n_in,
+                                      n_rec,
+                                      weights_in_size,
+                                      weights_rec_size,
+                                      buffer_length,
+                                      n_ref,
+                                      volt_coeff,
+                                      threshold, 
+                                      0,
+                                      timesteps);
+    cudaDeviceSynchronize();
 
     // just in case leaving the scope doesn't destroy the allocation(?)
     cudaFree(in_currents_device);
@@ -268,6 +257,8 @@ void Simulation::copyFromDevice() {
 
     cudaMemcpy(spikes, spikes_device, net_state_size*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(refractory_buffer.data(), refractory_buffer_device, net_state_size*sizeof(int), cudaMemcpyDeviceToHost);
+
+    cudaDeviceSynchronize();
 }
 
 void Simulation::free() {

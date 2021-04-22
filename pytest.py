@@ -36,5 +36,5 @@ if __name__ == '__main__':
     np_volts = np.reshape(np_volts, (N_WINDOW, N_REC))
     np_spikes = np.reshape(np_spikes, (N_WINDOW, N_REC))
 
-    print(np_volts[-100:, -8:])
-    print(np_spikes[-100:, -8:])
+    print(np_volts[:100, :8])
+    print(np_spikes[:100, :8])
