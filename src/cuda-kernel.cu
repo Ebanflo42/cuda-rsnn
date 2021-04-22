@@ -26,18 +26,19 @@ __global__ void stepLIF(float* voltages,
     //compute new voltages and spikes
     if(post < n_rec) {
 
+        //printf("%d", sizeof(spike_trains)/sizeof(float));
         int end = start + steps;
 
         for(int t = start; t < end; ++t) {
 
-            int last_t = (t - 1)%buffer_len;
+            int last_t = t == 0 ? buffer_len - 1 : t - 1;
             int tm = t%buffer_len;
             int index = n_rec*tm + post;
             int last_index = n_rec*last_t + post;
 
             //if a spike occurred in the last step, or we are in the refractory period, clamp the voltage and spike trains to 0
             if(spike_trains[last_index] > 0.5 || refractory_buffer[last_index] > 0) {
-                printf("spike\n");
+                //printf("spike\n");
                 voltages[index] = 0.0;
                 spike_trains[index] = 0.0;
                 refractory_buffer[index] = (1 + refractory_buffer[last_index])%ref_period;

@@ -8,8 +8,8 @@
 #include "src/simulation.cu"
 
 #define N_IN 50
-#define N_REC 250
-#define N_WINDOW 10000
+#define N_REC 2
+#define N_WINDOW 20000
 #define TIMESTEPS 20000
 
 #define THRESHOLD 0.3

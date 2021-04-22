@@ -15,7 +15,7 @@ Compile the shared object file:
 nvcc src/simulation.cu -o src/simulation.so -shared -Xcompiler -fPIC -std=c++11
 ```
 
-Running this script will simulate a LIF network of 250 neurons for 10000 timesteps with random (uniform) weights and input currents, and then print a subset of the voltages and spikes:
+Running this script will simulate a LIF network of 250 neurons for 20000 timesteps with random (uniform) weights and input currents, and then print a subset of the voltages and spikes:
 
 ```
 python pytest.py
